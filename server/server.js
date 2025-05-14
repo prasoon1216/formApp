@@ -2,17 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { MongoClient, ObjectId } = require('mongodb');
-const mongoose = require('mongoose'); // Add mongoose import
+const mongoose = require('mongoose');
+const { Schema, Types } = mongoose;
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // MongoDB connection URI and database/collection names
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://prodsystem:Allied%401234@amlmongodb:27017/formApp?authSource=formApp';
-const DB_NAME = process.env.DB_NAME || 'formApp';
-const COLLECTION_NAME = process.env.COLLECTION_NAME || 'machines';
-const CALENDAR_COLLECTION_NAME = process.env.CALENDAR_COLLECTION_NAME || 'calendar';
 // Middleware
 app.use(cors()); // Allow requests from other origins (e.g., frontend on port 5173)
 app.use(bodyParser.json()); // Parse incoming JSON data
@@ -20,20 +18,26 @@ app.use(bodyParser.json()); // Parse incoming JSON data
 // Register auth route
 app.use('/auth', require('./routes/authRoutes'));
 
-let db, machinesCollection, calendarCollection;
+// Define Mongoose schemas and models
+// Machine Schema
+const MachineSchema = new Schema({
+    id: String,
+    type: { type: String, required: true },
+    name: { type: String, required: true },
+    targetOEE: { type: Number, required: true }
+});
 
-// Connect to MongoDB
-MongoClient.connect(MONGO_URI, { connectTimeoutMS: 30000 })
-    .then((client) => {
-        db = client.db(DB_NAME);
-        machinesCollection = db.collection(COLLECTION_NAME);
-        calendarCollection = db.collection(CALENDAR_COLLECTION_NAME);
-        console.log(`Connected to MongoDB: ${DB_NAME}`);
-    })
-    .catch((error) => {
-        console.error('Error connecting to MongoDB:', error);
-        process.exit(1);
-    });
+// Calendar Schema
+const CalendarSchema = new Schema({
+    date: { type: String, required: true },
+    day: { type: String, required: true },
+    selectedShift: { type: String, required: true },
+    shiftHours: Schema.Types.Mixed
+});
+
+// Create models
+const Machine = mongoose.model('Machine', MachineSchema, 'machines');
+const Calendar = mongoose.model('Calendar', CalendarSchema, 'calendar');
 
 // Connect to MongoDB with Mongoose
 mongoose.connect(MONGO_URI)
@@ -43,13 +47,7 @@ mongoose.connect(MONGO_URI)
 // Get all machines
 app.get('/machines', async(req, res) => {
     try {
-        if (!machinesCollection) {
-            console.error('Machines collection is not initialized.');
-            return res.status(500).json({ error: 'Machines collection is not initialized.' });
-        }
-
-        const machines = await machinesCollection.find().toArray();
-        console.log('GET /machines - Returning machines:', machines);
+        const machines = await Machine.find().lean();
         res.json(machines);
     } catch (error) {
         console.error('Error fetching machines:', error);
@@ -67,11 +65,11 @@ app.post('/machines', async(req, res) => {
         return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const newMachine = { id, type, name, targetOEE }; // Include the `id` from the request body
     try {
-        const result = await machinesCollection.insertOne(newMachine);
-        console.log('POST /machines - Machine added:', { _id: result.insertedId, ...newMachine });
-        res.status(201).json({ _id: result.insertedId, ...newMachine }); // Return the inserted machine with its `_id`
+        const newMachine = new Machine({ id, type, name, targetOEE });
+        await newMachine.save();
+        console.log('POST /machines - Machine added:', newMachine);
+        res.status(201).json(newMachine);
     } catch (error) {
         console.error('Error adding machine:', error);
         res.status(500).json({ error: 'Failed to add machine.' });
@@ -91,28 +89,26 @@ app.put('/machines/:id', async(req, res) => {
 
     try {
         // Validate the MongoDB ObjectId
-        if (!ObjectId.isValid(id)) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
             console.error(`PUT /machines/${id} - Invalid ObjectId`);
             return res.status(400).json({ error: 'Invalid machine ID.' });
         }
 
-        // Check if the machine exists
-        const existingMachine = await machinesCollection.findOne({ _id: new ObjectId(id) });
-        if (!existingMachine) {
+        // Check if the machine exists and update it
+        const updateData = { type, name, targetOEE };
+        const updatedMachine = await Machine.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedMachine) {
             console.error(`PUT /machines/${id} - Machine not found`);
             return res.status(404).json({ error: 'Machine not found.' });
         }
 
-        console.log(`PUT /machines/${id} - Machine exists:`, existingMachine);
-
-        // Ensure `_id` is not modified
-        const updateData = { type, name, targetOEE };
-
-        const result = await machinesCollection.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: updateData }, { returnDocument: 'after' } // Ensure the updated document is returned
-        );
-
-        console.log(`PUT /machines/${id} - Machine updated:`, result.value);
-        res.json(result.value); // Return the updated machine
+        console.log(`PUT /machines/${id} - Machine updated:`, updatedMachine);
+        res.json(updatedMachine);
     } catch (error) {
         console.error('Error updating machine:', error);
         res.status(500).json({ error: 'Failed to update machine.' });
@@ -125,9 +121,14 @@ app.delete('/machines/:id', async(req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await machinesCollection.deleteOne({ _id: new ObjectId(id) });
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            console.error(`DELETE /machines/${id} - Invalid ObjectId`);
+            return res.status(400).json({ error: 'Invalid machine ID.' });
+        }
 
-        if (result.deletedCount === 0) {
+        const result = await Machine.findByIdAndDelete(id);
+
+        if (!result) {
             console.error(`DELETE /machines/${id} - Machine not found`);
             return res.status(404).json({ error: 'Machine not found.' });
         }
@@ -150,11 +151,11 @@ app.post('/calendar', async(req, res) => {
         return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const newCalendarEntry = { date, day, selectedShift, shiftHours };
     try {
-        const result = await calendarCollection.insertOne(newCalendarEntry);
-        console.log('POST /calendar - Calendar entry added:', { _id: result.insertedId, ...newCalendarEntry });
-        res.status(201).json({ _id: result.insertedId, ...newCalendarEntry });
+        const newCalendarEntry = new Calendar({ date, day, selectedShift, shiftHours });
+        await newCalendarEntry.save();
+        console.log('POST /calendar - Calendar entry added:', newCalendarEntry);
+        res.status(201).json(newCalendarEntry);
     } catch (error) {
         console.error('Error adding calendar entry:', error);
         res.status(500).json({ error: 'Failed to add calendar entry.' });
@@ -164,7 +165,7 @@ app.post('/calendar', async(req, res) => {
 //get api
 app.get('/calendar', async(req, res) => {
     try {
-        const calendarEntries = await calendarCollection.find({}).toArray();
+        const calendarEntries = await Calendar.find().lean();
         console.log('GET /calendar - Fetched entries:', calendarEntries.length);
         res.status(200).json(calendarEntries);
     } catch (error) {
@@ -184,22 +185,24 @@ app.put('/calendar/:id', async(req, res) => {
     }
 
     try {
-        const result = await calendarCollection.updateOne({ _id: new ObjectId(id) }, {
-            $set: {
-                date,
-                day,
-                selectedShift,
-                shiftHours,
-            },
-        });
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            console.error(`PUT /calendar/${id} - Invalid ObjectId`);
+            return res.status(400).json({ error: 'Invalid calendar entry ID.' });
+        }
 
-        if (result.matchedCount === 0) {
+        const updatedEntry = await Calendar.findByIdAndUpdate(
+            id,
+            { date, day, selectedShift, shiftHours },
+            { new: true }
+        );
+
+        if (!updatedEntry) {
             console.warn(`PUT /calendar - No entry found with ID: ${id}`);
             return res.status(404).json({ error: 'Calendar entry not found.' });
         }
 
         console.log(`PUT /calendar - Updated entry ID: ${id}`);
-        res.status(200).json({ message: 'Calendar entry updated successfully.' });
+        res.status(200).json({ message: 'Calendar entry updated successfully.', entry: updatedEntry });
     } catch (error) {
         console.error('Error updating calendar entry:', error);
         res.status(500).json({ error: 'Failed to update calendar entry.' });
@@ -422,7 +425,6 @@ app.delete('/daily-production/job/:jobId', async(req, res) => {
 // Save production entries independently of jobs
 app.put('/daily-production/production-independent', async(req, res) => {
     try {
-        console.log('INCOMING /production-independent BODY:', JSON.stringify(req.body));
         const { date, productionEntries } = req.body;
         if (!date || !productionEntries || !Array.isArray(productionEntries)) {
             return res.status(400).json({ error: 'Both date and productionEntries (array) are required.' });
