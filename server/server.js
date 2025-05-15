@@ -6,19 +6,22 @@ const { MongoClient, ObjectId } = require('mongodb');
 const mongoose = require('mongoose'); // Add mongoose import
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server is running on http://0.0.0.0:${PORT}`);
+});
 
 // MongoDB connection URI and database/collection names
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://prodsystem:Allied%401234@amlmongodb:27017/formApp?authSource=formApp';
 const DB_NAME = process.env.DB_NAME || 'formApp';
 const COLLECTION_NAME = process.env.COLLECTION_NAME || 'machines';
 const CALENDAR_COLLECTION_NAME = process.env.CALENDAR_COLLECTION_NAME || 'calendar';
+
 // Middleware
 app.use(cors()); // Allow requests from other origins (e.g., frontend on port 5173)
 app.use(bodyParser.json()); // Parse incoming JSON data
 
 // Authentication removed
-
 let db, machinesCollection, calendarCollection;
 
 // Connect to MongoDB
