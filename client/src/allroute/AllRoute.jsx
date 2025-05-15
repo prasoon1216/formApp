@@ -6,7 +6,6 @@ import ContactUs from '../pages/ContactUs'
 import DailyProductionInput from '../pages/DailyProductionInput'
 import OEEDashboard from '../pages/OEEDashboard'
 import DailyProductionReport from '../pages/DailyProductionReport'
-import LoginPage from '../pages/LoginPage'
 import Plan from '../pages/MachinePlan'
 import Machines from '../pages/Machines'
 import Calendar from '../pages/Calendar'
@@ -20,7 +19,6 @@ const PrivateRoute = ({ children }) => {
 const AllRoute = () => {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route path="/home" element={<PrivateRoute><HomePages/></PrivateRoute>}  />
       <Route path="/blogs" element={<PrivateRoute><Blogs/></PrivateRoute>}  />
       <Route path="/contact" element={<PrivateRoute><ContactUs/></PrivateRoute>}  />
