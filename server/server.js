@@ -17,8 +17,7 @@ const CALENDAR_COLLECTION_NAME = process.env.CALENDAR_COLLECTION_NAME || 'calend
 app.use(cors()); // Allow requests from other origins (e.g., frontend on port 5173)
 app.use(bodyParser.json()); // Parse incoming JSON data
 
-// Register auth route
-app.use('/auth', require('./routes/authRoutes'));
+// Authentication removed
 
 let db, machinesCollection, calendarCollection;
 
