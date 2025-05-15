@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const { Schema, Types } = mongoose;
+const { Schema } = mongoose;
 
 
 const app = express();
@@ -15,8 +15,6 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://prodsystem:Allied%401234@a
 app.use(cors()); // Allow requests from other origins (e.g., frontend on port 5173)
 app.use(bodyParser.json()); // Parse incoming JSON data
 
-// Register auth route
-app.use('/auth', require('./routes/authRoutes'));
 
 // Define Mongoose schemas and models
 // Machine Schema
