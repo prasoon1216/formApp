@@ -170,7 +170,7 @@ const defaultEntry = {
   const fetchDailyProduction = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`http://localhost:3000/daily-production/${currentDate}`);
+      const response = await axios.get(`http://localhost:10000/daily-production/${currentDate}`);
       setSavedJobs(response.data.jobs || []);
       // Only update production entries if they are fetched for the first time, not on job deletion
       if (response.data.independentProductionEntries && response.data.independentProductionEntries.length > 0) {
@@ -228,9 +228,9 @@ const defaultEntry = {
       const payload = { ...formData, currentDate };
       let response;
       if (editingJobId) {
-        response = await axios.put(`http://localhost:3000/daily-production/job/${editingJobId}`, payload);
+        response = await axios.put(`http://localhost:10000/daily-production/job/${editingJobId}`, payload);
       } else {
-        response = await axios.post('http://localhost:3000/daily-production/job', payload);
+        response = await axios.post('http://localhost:10000/daily-production/job', payload);
       }
       fetchDailyProduction();
       setIsLoading(false);
@@ -269,7 +269,7 @@ const defaultEntry = {
       }));
 
       const response = await axios.put(
-        `http://localhost:3000/daily-production/production-independent`,
+        `http://localhost:10000/daily-production/production-independent`,
         {
           date: currentDate,
           productionEntries: entriesToSave
@@ -313,7 +313,7 @@ const defaultEntry = {
     
     try {
       // Get machines first to ensure we can set a default machine
-      const machinesResponse = await axios.get('http://localhost:3000/machines');
+      const machinesResponse = await axios.get('http://localhost:10000/machines');
       const machinesList = machinesResponse.data || [];
       
       // Set a default machine if available
@@ -348,7 +348,7 @@ const defaultEntry = {
     if (!window.confirm('Are you sure you want to delete this job?')) return;
     try {
       setIsLoading(true);
-      await axios.delete(`http://localhost:3000/daily-production/job/${jobId}`);
+      await axios.delete(`http://localhost:10000/daily-production/job/${jobId}`);
       setSavedJobs(prev => prev.filter(job => job._id !== jobId));
       // Do not touch production entries at all. Only jobs are affected.
       setIsLoading(false);
@@ -486,7 +486,7 @@ const defaultEntry = {
     const fetchInitialData = async () => {
       try {
         // Get machines list
-        const machinesResponse = await axios.get('http://localhost:3000/machines');
+        const machinesResponse = await axios.get('http://localhost:10000/machines');
         if (machinesResponse.data && machinesResponse.data.length > 0) {
           const machinesList = machinesResponse.data;
           setMachines(machinesList);
@@ -811,7 +811,7 @@ const defaultEntry = {
                         <td className="border border-gray-300 p-2 text-center">
                           <div className="flex gap-2 justify-center">
                             <button
-                              onClick={() => handleEditJob(job._id)}
+                              onClick={() => handleEditJob(job.id)}
                               className="bg-blue-500 text-white px-3 py-1 rounded"
                             >
                               Edit
