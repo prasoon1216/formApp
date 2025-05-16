@@ -15,7 +15,7 @@ export default function Machines() {
 
   const fetchMachines = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/machines');
+      const response = await axios.get('http://localhost:10000/machines');
       const sortedMachines = response.data.sort((a, b) => {
         if (a.type === b.type) {
           return a.name.localeCompare(b.name);
@@ -79,7 +79,7 @@ export default function Machines() {
       console.log('Adding machine:', newMachine);
 
       // Send the new machine to the backend
-      await axios.post('http://localhost:3000/machines', newMachine);
+      await axios.post('http://localhost:10000/machines', newMachine);
 
       // Fetch the updated list of machines
       await fetchMachines();
@@ -111,7 +111,7 @@ export default function Machines() {
         return; // Stop further execution
       }
 
-      const updateUrl = `http://localhost:3000/machines/${machineId}`;
+      const updateUrl = `http://localhost:10000/machines/${machineId}`;
       console.log('🔗 PUT URL:', updateUrl);
 
       // Remove the `id` and `_id` fields from the request body
@@ -163,7 +163,7 @@ export default function Machines() {
         }
 
         // Send delete request to the backend
-        await axios.delete(`http://localhost:3000/machines/${machineToDelete._id}`);
+        await axios.delete(`http://localhost:10000/machines/${machineToDelete._id}`);
 
         // Fetch the updated list of machines
         await fetchMachines();
