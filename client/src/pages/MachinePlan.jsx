@@ -53,7 +53,7 @@ export default function MachinePlan() {
   useEffect(() => {
     const fetchMachines = async () => {
       try {
-        const response = await axios.get("http://localhost:10000/machines");
+        const response = await axios.get("/machines");
         setMachines(response.data);
         // Filter machines by default type (CNC)
         setFilteredMachines(response.data.filter((machine) => machine.type && machine.type.toLowerCase() === "cnc"));
@@ -80,7 +80,7 @@ export default function MachinePlan() {
   // Fetch saved forms from the backend
   const fetchSavedForms = async () => {
     try {
-      const response = await axios.get("http://localhost:10000/form-submit");
+      const response = await axios.get("/form-submit");
       setSavedForms(response.data);
     } catch (error) {
       console.error("Error fetching saved forms:", error);
@@ -578,7 +578,7 @@ export default function MachinePlan() {
             const month = currentDate.getMonth();
             const day = String(currentDate.getDate()).padStart(2, '0');
             const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
-            const res = await axios.get("http://localhost:10000/api/calendar", { params: { month, year } });
+            const res = await axios.get("/api/calendar", { params: { month, year } });
             const entry = res.data.find((e) => e.date === dateStr);
             const shiftStart = entry ? entry.shiftStart : '08:00';
             const shiftEnd = entry ? entry.shiftEnd : '20:00';
@@ -895,14 +895,14 @@ export default function MachinePlan() {
 
       if (editingForm) {
         // Update existing form
-        response = await axios.put(`http://localhost:10000/form-submit/${editingForm}`, formData);
+        response = await axios.put(`/form-submit/${editingForm}`, formData);
         if (response.status === 200) {
           alert("Form updated successfully!");
           setEditingForm(null);
         }
       } else {
         // Create new form
-        response = await axios.post("http://localhost:10000/form-submit", formData);
+        response = await axios.post("/form-submit", formData);
         if (response.status === 201) {
           alert("Form data saved successfully!");
         }
@@ -922,7 +922,7 @@ export default function MachinePlan() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this form?')) {
       try {
-        await axios.delete(`http://localhost:10000/form-submit/${id}`);
+        await axios.delete(`/form-submit/${id}`);
         await fetchSavedForms();
       } catch (error) {
         console.error("Error deleting form:", error);
