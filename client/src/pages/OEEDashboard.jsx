@@ -86,7 +86,7 @@ export default function OEEDashboard() {
     let pollingInterval;
     async function fetchMachines() {
       try {
-        const res = await axios.get("http://localhost:10000/machines");
+        const res = await axios.get("/machines");
         // Sort by type, then by name
         const sorted = [...res.data].sort((a, b) => {
           if (a.type === b.type) {
@@ -109,7 +109,7 @@ export default function OEEDashboard() {
     const fetchReports = async () => {
       setLoading(true);
       try {
-        const res = await axios.get("http://localhost:10000/job/all-reports");
+        const res = await axios.get("/job/all-reports");
         setReports(res.data || []);
       } catch (err) {
         setError("Failed to fetch reports");

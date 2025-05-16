@@ -113,7 +113,7 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
     const defaultData = initializeCalendarData(selectedYear, selectedMonth);
     try {
       // Filter calendar entries by month and year
-      const res = await axios.get("http://localhost:10000/api/calendar", {
+      const res = await axios.get("/api/calendar", {
         params: {
           month: selectedMonth,
           year: selectedYear
@@ -376,7 +376,7 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
         console.log('Saving entry for date:', e.date);
 
         // The new API endpoint handles create/update logic based on date
-        await axios.post("http://localhost:10000/api/calendar", payload);
+        await axios.post("/api/calendar", payload);
       }
       
       onShiftSelect(entries[0]);
