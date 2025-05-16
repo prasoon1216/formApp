@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-// Set base URL for backend API
-axios.defaults.baseURL = 'http://localhost:10000';
+// Base URL is set globally in main.jsx
 
 // Helper function to convert MM:SS to decimal format
 const convertCycleTimeToDecimal = (cycleTime) => {

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:10000/api';
+const API_BASE_URL = 'https://formapp-351i.onrender.com/api';
 
 export const productionApi = {
   // Get all production records
