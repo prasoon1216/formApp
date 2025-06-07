@@ -773,16 +773,29 @@ export default function DailyProductionReport() {
                     : 0;
                   
                   // --- OEE Calculations ---
-                  // Weighted (correct) OEE: sum(Good Output * Cycle Time) / sum(Actual Duration * 60)
-                  const totalGoodOutputCycleTime = productionEntries.reduce((acc, e) => {
-                    const goodOutput = (parseFloat(e.actualProdQty) || 0) - (parseFloat(e.rejectionQty) || 0);
-                    const cycleTime = parseFloat(convertCycleTimeToDecimal(e.cycleTimeMin)) || 0;
-                    return acc + (goodOutput * cycleTime);
-                  }, 0);
-                  const totalActualDurationMins = productionEntries.reduce((acc, e) => acc + ((parseFloat(e.actDurationHrs) || 0) * 60), 0);
-                  const weightedOEE = (totalActualDurationMins > 0)
-                    ? totalGoodOutputCycleTime / totalActualDurationMins
-                    : null;
+                  // Average OEE: Average of OEE values from individual rows displayed in the table.
+                  let sumOfDisplayedOEEs = 0;
+                  let countOfValidDisplayedOEEs = 0;
+
+                  // 'clustered' is the array used to render the production entry rows.
+                  // Each 'entryInCluster' in 'clustered' should have an 'oee' property
+                  // which is a string like "XX.YY%" or "-".
+                  clustered.forEach(entryInCluster => {
+                    if (entryInCluster.oee && typeof entryInCluster.oee === 'string' && entryInCluster.oee !== '-') {
+                      const oeeStringValue = entryInCluster.oee.replace('%', ''); // Remove '%' character
+                      const oeeNumericValue = parseFloat(oeeStringValue);
+                      if (!isNaN(oeeNumericValue)) {
+                        sumOfDisplayedOEEs += (oeeNumericValue / 100.0); // Convert from percentage (e.g., 85.00) to fraction (e.g., 0.85)
+                        countOfValidDisplayedOEEs++;
+                      }
+                    }
+                  });
+
+                  // Calculate the average OEE. This will be displayed in the total row.
+                  // The variable 'weightedOEE' is kept as it's likely used in the display logic for the total.
+                  const weightedOEE = countOfValidDisplayedOEEs > 0
+                    ? sumOfDisplayedOEEs / countOfValidDisplayedOEEs // This result is a fraction (e.g., 0.85)
+                    : null; // Or 0, if null OEE should be displayed as 0%.
                   
                   // All time loss fields
                   const timeLossFields = [
@@ -821,7 +834,7 @@ export default function DailyProductionReport() {
                             textAlign: 'left',
                             minWidth: '70px'
                           }}>
-                            <div>Total OEE (weighted):</div>
+                            <div>Total OEE (Average):</div>
                             <div>{weightedOEE !== null ? (weightedOEE * 100).toFixed(2) : '-'}</div>
                           </div>
                         </div>

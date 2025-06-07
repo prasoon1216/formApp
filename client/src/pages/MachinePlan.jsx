@@ -93,6 +93,9 @@ export default function MachinePlan() {
   }, []);
 
   useEffect(() => {
+    // Parse setupTime as minutes, default to 0 if not set
+    const setupTimeMinutes = formData.setupTime ? parseFloat(formData.setupTime) : 0;
+
     const totalMinutes =
       (formData.cncTimePerPc && formData.planQty
         ? parseFloat(formData.cncTimePerPc) * parseFloat(formData.planQty)
@@ -111,21 +114,25 @@ export default function MachinePlan() {
         : 0) +
       (formData.loadUnloadTime && formData.planQty
         ? parseFloat(formData.loadUnloadTime) * parseFloat(formData.planQty)
-        : 0); // Include load and unload time
+        : 0) +
+      setupTimeMinutes; // Include setup time
 
     const totalHours = (totalMinutes / 60).toFixed(2);
-    // Calculate only M/C time (CNC + VMC + Load & Unload)
+    // Calculate only M/C time (CNC + VMC + Load & Unload + Setup)
     const onlyMcMinutes =
       (formData.cncTimePerPc && formData.planQty ? parseFloat(formData.cncTimePerPc) * parseFloat(formData.planQty) : 0) +
       (formData.vmcTimePerPc && formData.planQty ? parseFloat(formData.vmcTimePerPc) * parseFloat(formData.planQty) : 0) +
-      (formData.loadUnloadTime && formData.planQty ? parseFloat(formData.loadUnloadTime) * parseFloat(formData.planQty) : 0);
+      (formData.loadUnloadTime && formData.planQty ? parseFloat(formData.loadUnloadTime) * parseFloat(formData.planQty) : 0) +
+      setupTimeMinutes; // Include setup time
     const onlyMcHours = (onlyMcMinutes / 60).toFixed(2);
+
     setFormData((prevFormData) => ({
       ...prevFormData,
       totalTimeHrs: totalHours,
       totalTimeOnlyMC: onlyMcHours,
     }));
-    // Now update target dates with the latest values
+    
+    // Always update target dates with latest values
     updateTargetDates({
       ...formData,
       totalTimeHrs: totalHours,
@@ -140,6 +147,7 @@ export default function MachinePlan() {
     formData.loadUnloadTime, // Add dependency for load and unload time
     formData.planQty,
     formData.startDate,
+    formData.setupTime, // Add dependency for setup time
   ]);
 
   // --- UTILITY: Calculate overlap in minutes between two time ranges (HH:mm) ---
@@ -281,237 +289,326 @@ export default function MachinePlan() {
     return merged;
   }
 
+  // Helper function to find the next working day and time
+  const findNextWorkingTime = (initialStartDate, calendarData) => {
+    let currentDate = new Date(initialStartDate);
+    let isStillOriginalDay = true; // Flag to track if we are still on the initial start day
+    let guard = 0;
+    const maxGuard = 365; // Max 1 year to prevent infinite loops
+
+    const toMinutes = t => {
+      if (!t) return 0;
+      const [h, m] = String(t).split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    const toDateWithTime = (date, minutes) => {
+      const newDate = new Date(date);
+      newDate.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      return newDate;
+    };
+
+    while (guard < maxGuard) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth(); // 0-indexed
+      const dayOfMonth = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${dayOfMonth}`;
+      const calendarEntry = calendarData.find(e => e.date === dateStr);
+
+      const isSunday = calendarEntry?.day === 'Sun' || currentDate.getDay() === 0;
+      const isSundayWork = calendarEntry?.sundayWork === true || String(calendarEntry?.sundayWork).toLowerCase() === 'true';
+
+      if (isSunday && !isSundayWork) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+        isStillOriginalDay = false;
+        guard++;
+        continue;
+      }
+
+      const shiftStartStr = calendarEntry?.shiftStart || '08:00';
+      const shiftEndStr = calendarEntry?.shiftEnd || '20:00';
+      const shiftStartMin = toMinutes(shiftStartStr);
+      const shiftEndMin = toMinutes(shiftEndStr);
+
+      let currentProcessingTimeMin;
+
+      if (isStillOriginalDay) {
+        currentProcessingTimeMin = initialStartDate.getHours() * 60 + initialStartDate.getMinutes();
+      } else {
+        currentProcessingTimeMin = shiftStartMin;
+      }
+      
+      // If day is not in calendar and not a Sunday, it defaults to 08:00-20:00 shift.
+      // If it's a non-working day (e.g. no shift times defined and not a default working day type), skip.
+      // This check is simplified: if shiftStartMin and shiftEndMin are effectively 0 (or equal), assume non-working unless explicitly SundayWork.
+      if (shiftStartMin === shiftEndMin && !(isSunday && isSundayWork)) { // A crude check for no defined shift
+         // Only advance if there's no calendar entry to provide defaults, or entry explicitly has no hours
+         if (!calendarEntry || (!calendarEntry.shiftStart && !calendarEntry.shiftEnd)) {
+            currentDate.setDate(currentDate.getDate() + 1);
+            currentDate.setHours(0, 0, 0, 0);
+            isStillOriginalDay = false;
+            guard++;
+            continue;
+         }
+      }
+
+      if (currentProcessingTimeMin < shiftStartMin) {
+        return { date: toDateWithTime(currentDate, shiftStartMin), isFirstDay: isStillOriginalDay };
+      } else if (currentProcessingTimeMin >= shiftStartMin && currentProcessingTimeMin < shiftEndMin) {
+        return { date: toDateWithTime(currentDate, currentProcessingTimeMin), isFirstDay: isStillOriginalDay };
+      } else { // currentProcessingTimeMin >= shiftEndMin
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+        isStillOriginalDay = false;
+        guard++;
+      }
+    }
+    console.warn("findNextWorkingTime: Fallback. Could not find a suitable working time within maxGuard limit.");
+    return { date: new Date(initialStartDate), isFirstDay: true };
+  };
+
   const calculateTargetDate = async (startDate, totalTimeHrs) => {
-    try {
-      // Fetch all calendar data (should include availableHours for each day)
-      const response = await axios.get("http://localhost:10000/api/calendar");
-      const calendarData = response.data;
+  try {
+    const response = await axios.get("http://localhost:10000/api/calendar");  
+    const calendarData = response.data;
 
-      let remainingHours = totalTimeHrs;
-      let currentDate = new Date(startDate);
-      let finishDate = null;
-      let guard = 0;
-      const maxGuard = 1000;
+    const { date: adjustedStartDate, isFirstDay: initialIsFirstDayFlag } = findNextWorkingTime(new Date(startDate), calendarData);
+    
+    let remainingHours = totalTimeHrs;
+    let currentDate = new Date(adjustedStartDate);
+    let finishDate = null;
+    let guard = 0;
+    const maxGuard = 1000;
+    const startTimeStr = adjustedStartDate.toTimeString().slice(0,5);
+    let isFirstDay = initialIsFirstDayFlag;
 
-      // Extract the actual start time from the startDate string
-      const startTimeStr = currentDate.toTimeString().slice(0,5); // 'HH:MM'
-      let isFirstDay = true;
-
-      while (remainingHours > 0 && guard < maxGuard) {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
-        const entry = calendarData.find(e => e.date === dateStr);
+    while (remainingHours > 0 && guard < maxGuard) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
+      const entry = calendarData.find(e => e.date === dateStr);
 
         // --- SUNDAY SKIP LOGIC ---
-        const isSunday = entry && (entry.day === 'Sun' || new Date(dateStr).getDay() === 0);
-        const isSundayWork = entry && entry.sundayWork;
-        if (isSunday && !isSundayWork) {
+      const isSunday = entry && (entry.day === 'Sun' || new Date(dateStr).getDay() === 0);
+      const isSundayWork = entry && entry.sundayWork;
+      if (isSunday && !isSundayWork) {
           // Skip this day if it's a Sunday and not marked as working
-          currentDate.setDate(currentDate.getDate() + 1);
-          currentDate.setHours(0,0,0,0);
-          isFirstDay = false;
-          guard++;
-          continue;
-        }
-
-        let available = entry && entry.availableHours ? parseFloat(entry.availableHours) : 0;
-        if (available > 0) {
-          available = calcAvailableHours(entry);
-          let availableToday = available;
-          let workStartTime = entry.shiftStart || '08:00';
-          if (isFirstDay) {
-            // Calculate available minutes from actual start time to shift end, minus merged breaks
-            workStartTime = startTimeStr;
-            const shiftEnd = entry.shiftEnd || '20:00';
-            const toMinutes = t => {
-              const [h, m] = t.split(":").map(Number);
-              return h * 60 + m;
-            };
-            let shiftEndMin = toMinutes(shiftEnd);
-            let startTimeMin = toMinutes(startTimeStr);
-            if (shiftEndMin <= startTimeMin) shiftEndMin += 24 * 60;
-            let workWindow = shiftEndMin - startTimeMin;
-            // Collect all breaks in the window
-            let breaks = [];
-            if (Array.isArray(entry.regularBreaks)) {
-              for (const b of entry.regularBreaks) {
-                if (b.enabled && b.start && b.end) breaks.push({start: b.start, end: b.end});
-              }
-            }
-            if (entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end) {
-              breaks.push({start: entry.specialBreak.start, end: entry.specialBreak.end});
-            }
-            // Merge breaks and calculate overlap with the work window
-            const merged = mergeBreakIntervals(breaks);
-            let overlap = 0;
-            for (const [bs, be] of merged) {
-              let overlapStart = Math.max(bs, startTimeMin);
-              let overlapEnd = Math.min(be, shiftEndMin);
-              if (overlapEnd > overlapStart) overlap += (overlapEnd - overlapStart);
-            }
-            let availableMinutes = Math.max(0, workWindow - overlap);
-            availableToday = availableMinutes / 60;
-          }
-          if (remainingHours <= availableToday) {
-            // --- Job finishes today: Walk forward from correct start time (actual for first day, shift start for others) ---
-            const shiftEnd = entry.shiftEnd || '20:00';
-            let breaks = [];
-            if (Array.isArray(entry.regularBreaks)) {
-              for (const b of entry.regularBreaks) {
-                if (b.enabled && b.start && b.end) breaks.push({start: b.start, end: b.end});
-              }
-            }
-            if (entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end) {
-              breaks.push({start: entry.specialBreak.start, end: entry.specialBreak.end});
-            }
-            const finishTime = getFinishTimeWithBreaksCustomStart(workStartTime, shiftEnd, breaks, Math.round(remainingHours * 60));
-            const finish = new Date(currentDate);
-            const [fh, fm] = finishTime.split(":").map(Number);
-            finish.setHours(fh, fm, 0, 0);
-            finishDate = finish;
-            break;
-          } else {
-            remainingHours -= availableToday;
-          }
-        }
-        // Move to next day
         currentDate.setDate(currentDate.getDate() + 1);
         currentDate.setHours(0,0,0,0);
         isFirstDay = false;
         guard++;
+        continue;
       }
-      if (guard >= maxGuard) {
-        // Fallback: far future
-        const farFuture = new Date();
-        farFuture.setFullYear(farFuture.getFullYear() + 3);
-        return farFuture.toISOString();
+
+      let availableEntry = entry && entry.availableHours ? parseFloat(entry.availableHours) : 0; // Renamed to avoid conflict
+      if (availableEntry > 0) {
+        // Corrected logic starts here
+        let shiftStart = entry.shiftStart || '08:00';
+        let shiftEnd = entry.shiftEnd || '20:00';
+        const toMinutes = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        let shiftStartMin = toMinutes(shiftStart);
+        let shiftEndMin = toMinutes(shiftEnd);
+        let actualStartMin = isFirstDay ? Math.max(toMinutes(startTimeStr), shiftStartMin) : shiftStartMin;
+        let workStartTime = `${String(Math.floor(actualStartMin / 60)).padStart(2, '0')}:${String(actualStartMin % 60).padStart(2, '0')}`;
+
+        if (shiftEndMin <= actualStartMin) shiftEndMin += 24 * 60;
+        let workWindow = shiftEndMin - actualStartMin;
+        let breaks = [];
+        let special = entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end
+          ? { start: entry.specialBreak.start, end: entry.specialBreak.end } : null;
+
+        if (special) {
+          const specialStartMin = toMinutes(special.start);
+          let specialEndMin = toMinutes(special.end);
+          if (specialEndMin <= specialStartMin) specialEndMin += 24 * 60;
+          if (Array.isArray(entry.regularBreaks)) {
+            for (const b of entry.regularBreaks) {
+              if (b.enabled && b.start && b.end) {
+                let bStartMin = toMinutes(b.start);
+                let bEndMin = toMinutes(b.end);
+                if (bEndMin <= bStartMin) bEndMin += 24 * 60;
+                if (bEndMin <= specialStartMin || bStartMin >= specialEndMin) {
+                  breaks.push({ start: b.start, end: b.end });
+                }
+              }
+            }
+          }
+          breaks.push(special);
+        } else {
+          if (Array.isArray(entry.regularBreaks)) {
+            for (const b of entry.regularBreaks) {
+              if (b.enabled && b.start && b.end) breaks.push({ start: b.start, end: b.end });
+            }
+          }
+        }
+        const merged = mergeBreakIntervals(breaks);
+        let overlap = 0;
+        for (const [bs, be] of merged) {
+          let overlapStart = Math.max(bs, actualStartMin);
+          let overlapEnd = Math.min(be, shiftEndMin);
+          if (overlapEnd > overlapStart) overlap += (overlapEnd - overlapStart);
+        }
+        let availableMinutes = Math.max(0, workWindow - overlap);
+        const functionContext = '[WP]';
+        let availableToday = availableMinutes / 60;
+        // Corrected logic ends here
+
+        if (remainingHours <= availableToday) {
+          // Convert merged breaks back to {start, end} format for getFinishTimeWithBreaksCustomStart
+          const formattedBreaks = merged.map(([startMin, endMin]) => ({
+            start: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}`,
+            end: `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`
+          }));
+          const finishTime = getFinishTimeWithBreaksCustomStart(workStartTime, shiftEnd, formattedBreaks, Math.round(remainingHours * 60));
+          const finish = new Date(currentDate);
+          const [fh, fm] = finishTime.split(":").map(Number);
+          finish.setHours(fh, fm, 0, 0);
+          finishDate = finish;
+          break;
+        } else {
+          remainingHours -= availableToday;
+        }
       }
-      return finishDate ? finishDate.toISOString() : null;
-    } catch (error) {
-      console.error("Error fetching calendar data:", error);
-      const fallbackDate = new Date();
-      fallbackDate.setDate(fallbackDate.getDate() + Math.ceil(totalTimeHrs / 8));
-      return fallbackDate.toISOString();
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0,0,0,0);
+      isFirstDay = false;
+      guard++;
     }
-  };
+    if (guard >= maxGuard) {
+      const farFuture = new Date();
+      farFuture.setFullYear(farFuture.getFullYear() + 3);
+      return farFuture.toISOString();
+    }
+    return finishDate ? finishDate.toISOString() : null;
+  } catch (error) {
+    console.error("Error fetching calendar data in calculateTargetDate:", error);
+    const fallbackDate = new Date();
+    fallbackDate.setDate(fallbackDate.getDate() + Math.ceil(totalTimeHrs / 8));
+    return fallbackDate.toISOString();
+  }
+};
 
   const calculateTargetDateOnlyMC = async (startDate, totalTimeOnlyMC) => {
-    try {
-      // Fetch all calendar data (should include availableHours for each day)
-      const response = await axios.get("http://localhost:10000/api/calendar");
-      const calendarData = response.data;
+  try {
+    const response = await axios.get("http://localhost:10000/api/calendar");
+    const calendarData = response.data;
 
-      let remainingHours = totalTimeOnlyMC;
-      let currentDate = new Date(startDate);
-      let finishDate = null;
-      let guard = 0;
-      const maxGuard = 1000;
+    const { date: adjustedStartDate, isFirstDay: initialIsFirstDayFlag } = findNextWorkingTime(new Date(startDate), calendarData);
+    
+    let remainingHours = totalTimeOnlyMC;
+    let currentDate = new Date(adjustedStartDate);
+    let finishDate = null;
+    let guard = 0;
+    const maxGuard = 1000;
+    const startTimeStr = adjustedStartDate.toTimeString().slice(0,5);
+    let isFirstDay = initialIsFirstDayFlag;
 
-      // Extract the actual start time from the startDate string
-      const startTimeStr = currentDate.toTimeString().slice(0,5); // 'HH:MM'
-      let isFirstDay = true;
+    while (remainingHours > 0 && guard < maxGuard) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
+      const entry = calendarData.find(e => e.date === dateStr);
 
-      while (remainingHours > 0 && guard < maxGuard) {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
-        const entry = calendarData.find(e => e.date === dateStr);
-
-        // --- SUNDAY SKIP LOGIC ---
-        const isSunday = entry && (entry.day === 'Sun' || new Date(dateStr).getDay() === 0);
-        const isSundayWork = entry && entry.sundayWork;
-        if (isSunday && !isSundayWork) {
-          // Skip this day if it's a Sunday and not marked as working
-          currentDate.setDate(currentDate.getDate() + 1);
-          currentDate.setHours(0,0,0,0);
-          isFirstDay = false;
-          guard++;
-          continue;
-        }
-
-        let available = entry && entry.availableHours ? parseFloat(entry.availableHours) : 0;
-        if (available > 0) {
-          available = calcAvailableHours(entry);
-          let availableToday = available;
-          let workStartTime = entry.shiftStart || '08:00';
-          if (isFirstDay) {
-            // Calculate available minutes from actual start time to shift end, minus merged breaks
-            workStartTime = startTimeStr;
-            const shiftEnd = entry.shiftEnd || '20:00';
-            const toMinutes = t => {
-              const [h, m] = t.split(":").map(Number);
-              return h * 60 + m;
-            };
-            let shiftEndMin = toMinutes(shiftEnd);
-            let startTimeMin = toMinutes(startTimeStr);
-            if (shiftEndMin <= startTimeMin) shiftEndMin += 24 * 60;
-            let workWindow = shiftEndMin - startTimeMin;
-            // Collect all breaks in the window
-            let breaks = [];
-            if (Array.isArray(entry.regularBreaks)) {
-              for (const b of entry.regularBreaks) {
-                if (b.enabled && b.start && b.end) breaks.push({start: b.start, end: b.end});
-              }
-            }
-            if (entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end) {
-              breaks.push({start: entry.specialBreak.start, end: entry.specialBreak.end});
-            }
-            // Merge breaks and calculate overlap with the work window
-            const merged = mergeBreakIntervals(breaks);
-            let overlap = 0;
-            for (const [bs, be] of merged) {
-              let overlapStart = Math.max(bs, startTimeMin);
-              let overlapEnd = Math.min(be, shiftEndMin);
-              if (overlapEnd > overlapStart) overlap += (overlapEnd - overlapStart);
-            }
-            let availableMinutes = Math.max(0, workWindow - overlap);
-            availableToday = availableMinutes / 60;
-          }
-          if (remainingHours <= availableToday) {
-            // --- Job finishes today: Walk forward from correct start time (actual for first day, shift start for others) ---
-            const shiftEnd = entry.shiftEnd || '20:00';
-            let breaks = [];
-            if (Array.isArray(entry.regularBreaks)) {
-              for (const b of entry.regularBreaks) {
-                if (b.enabled && b.start && b.end) breaks.push({start: b.start, end: b.end});
-              }
-            }
-            if (entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end) {
-              breaks.push({start: entry.specialBreak.start, end: entry.specialBreak.end});
-            }
-            const finishTime = getFinishTimeWithBreaksCustomStart(workStartTime, shiftEnd, breaks, Math.round(remainingHours * 60));
-            const finish = new Date(currentDate);
-            const [fh, fm] = finishTime.split(":").map(Number);
-            finish.setHours(fh, fm, 0, 0);
-            finishDate = finish;
-            break;
-          } else {
-            remainingHours -= availableToday;
-          }
-        }
-        // Move to next day
+      const isSunday = entry && (entry.day === 'Sun' || new Date(dateStr).getDay() === 0);
+      const isSundayWork = entry && entry.sundayWork;
+      if (isSunday && !isSundayWork) {
         currentDate.setDate(currentDate.getDate() + 1);
         currentDate.setHours(0,0,0,0);
         isFirstDay = false;
         guard++;
+        continue;
       }
-      if (guard >= maxGuard) {
-        // Fallback: far future
-        const farFuture = new Date();
-        farFuture.setFullYear(farFuture.getFullYear() + 3);
-        return farFuture.toISOString();
+
+      let availableEntry = entry && entry.availableHours ? parseFloat(entry.availableHours) : 0; // Renamed to avoid conflict
+      if (availableEntry > 0) {
+        // Corrected logic starts here
+        let shiftStart = entry.shiftStart || '08:00';
+        let shiftEnd = entry.shiftEnd || '20:00';
+        const toMinutes = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        let shiftStartMin = toMinutes(shiftStart);
+        let shiftEndMin = toMinutes(shiftEnd);
+        let actualStartMin = isFirstDay ? Math.max(toMinutes(startTimeStr), shiftStartMin) : shiftStartMin;
+        let workStartTime = `${String(Math.floor(actualStartMin / 60)).padStart(2, '0')}:${String(actualStartMin % 60).padStart(2, '0')}`;
+
+        if (shiftEndMin <= actualStartMin) shiftEndMin += 24 * 60;
+        let workWindow = shiftEndMin - actualStartMin;
+        let breaks = [];
+        let special = entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end
+          ? { start: entry.specialBreak.start, end: entry.specialBreak.end } : null;
+
+        if (special) {
+          const specialStartMin = toMinutes(special.start);
+          let specialEndMin = toMinutes(special.end);
+          if (specialEndMin <= specialStartMin) specialEndMin += 24 * 60;
+          if (Array.isArray(entry.regularBreaks)) {
+            for (const b of entry.regularBreaks) {
+              if (b.enabled && b.start && b.end) {
+                let bStartMin = toMinutes(b.start);
+                let bEndMin = toMinutes(b.end);
+                if (bEndMin <= bStartMin) bEndMin += 24 * 60;
+                if (bEndMin <= specialStartMin || bStartMin >= specialEndMin) {
+                  breaks.push({ start: b.start, end: b.end });
+                }
+              }
+            }
+          }
+          breaks.push(special);
+        } else {
+          if (Array.isArray(entry.regularBreaks)) {
+            for (const b of entry.regularBreaks) {
+              if (b.enabled && b.start && b.end) breaks.push({ start: b.start, end: b.end });
+            }
+          }
+        }
+        const merged = mergeBreakIntervals(breaks);
+        let overlap = 0;
+        for (const [bs, be] of merged) {
+          let overlapStart = Math.max(bs, actualStartMin);
+          let overlapEnd = Math.min(be, shiftEndMin);
+          if (overlapEnd > overlapStart) overlap += (overlapEnd - overlapStart);
+        }
+        let availableMinutes = Math.max(0, workWindow - overlap);
+        const functionContext = '[MC]';
+        let availableToday = availableMinutes / 60;
+        // Corrected logic ends here
+
+        if (remainingHours <= availableToday) {
+          // Convert merged breaks back to {start, end} format for getFinishTimeWithBreaksCustomStart
+          const formattedBreaks = merged.map(([startMin, endMin]) => ({
+            start: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}`,
+            end: `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`
+          }));
+          const finishTime = getFinishTimeWithBreaksCustomStart(workStartTime, shiftEnd, formattedBreaks, Math.round(remainingHours * 60));
+          const finish = new Date(currentDate);
+          const [fh, fm] = finishTime.split(":").map(Number);
+          finish.setHours(fh, fm, 0, 0);
+          finishDate = finish;
+          break;
+        } else {
+          remainingHours -= availableToday;
+        }
       }
-      return finishDate ? finishDate.toISOString() : null;
-    } catch (error) {
-      console.error("Error fetching calendar data:", error);
-      const fallbackDate = new Date();
-      fallbackDate.setDate(fallbackDate.getDate() + Math.ceil(totalTimeOnlyMC / 8));
-      return fallbackDate.toISOString();
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0,0,0,0);
+      isFirstDay = false;
+      guard++;
     }
-  };
+    if (guard >= maxGuard) {
+      const farFuture = new Date();
+      farFuture.setFullYear(farFuture.getFullYear() + 3);
+      return farFuture.toISOString();
+    }
+    return finishDate ? finishDate.toISOString() : null;
+  } catch (error) {
+    console.error("Error fetching calendar data in calculateTargetDateOnlyMC:", error);
+    const fallbackDate = new Date();
+    fallbackDate.setDate(fallbackDate.getDate() + Math.ceil(totalTimeOnlyMC / 8));
+    return fallbackDate.toISOString();
+  }
+};
 
   const updateTargetDates = async (customFormData) => {
     const data = customFormData || formData;
@@ -560,110 +657,9 @@ export default function MachinePlan() {
   useEffect(() => {
     // If we have startDate and totalTimeHrs, calculate target dates
     if (formData.startDate && formData.totalTimeHrs) {
-      const autoPredict = async () => {
-        const totalTime = parseFloat(formData.totalTimeHrs);
-        if (!isNaN(totalTime) && totalTime > 0) {
-          let remainingMinutes = totalTime * 60;
-          let currentDate = new Date(formData.startDate);
-          let resultDate = null;
-          let guard = 0;
-          const maxGuard = 1000;
-
-          // Extract the actual start time from the startDate string
-          const startTimeStr = currentDate.toTimeString().slice(0,5); // 'HH:MM'
-          let isFirstDay = true;
-
-          while (remainingMinutes > 0 && guard < maxGuard) {
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth();
-            const day = String(currentDate.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
-            const res = await axios.get("/api/calendar", { params: { month, year } });
-            const entry = res.data.find((e) => e.date === dateStr);
-            const shiftStart = entry ? entry.shiftStart : '08:00';
-            const shiftEnd = entry ? entry.shiftEnd : '20:00';
-            const availableHours = entry ? entry.availableHours : 12;
-            const availableMinutes = Math.round(availableHours * 60);
-            let breaks = [];
-            if (entry && entry.regularBreaks) {
-              breaks = entry.regularBreaks.filter(b => b.enabled && b.start && b.end).map(b => ({ start: b.start, end: b.end }));
-            }
-            if (entry && entry.specialBreak && entry.specialBreak.enabled && entry.specialBreak.start && entry.specialBreak.end) {
-              breaks.push({ start: entry.specialBreak.start, end: entry.specialBreak.end });
-            }
-            
-            const timeToMinutes = (t) => {
-              if (!t) return 0;
-              const [h, m] = t.split(":").map(Number);
-              return h * 60 + m;
-            };
-            breaks = breaks.map(b => ({ ...b, startM: timeToMinutes(b.start), endM: timeToMinutes(b.end) }))
-              .sort((a, b) => a.startM - b.startM);
-
-            let startHour = currentDate.getHours();
-            let startMinute = currentDate.getMinutes();
-            const [shiftStartHour, shiftStartMinute] = shiftStart.split(':').map(Number);
-            const [shiftEndHour, shiftEndMinute] = shiftEnd.split(':').map(Number);
-            let shiftStartTotal = shiftStartHour * 60 + shiftStartMinute;
-            let shiftEndTotal = shiftEndHour * 60 + shiftEndMinute;
-            let currentTotal = startHour * 60 + startMinute;
-            if (currentTotal < shiftStartTotal) {
-              currentTotal = shiftStartTotal;
-              currentDate.setHours(shiftStartHour, shiftStartMinute, 0, 0);
-            }
-            let workWindowStart = currentTotal;
-            let workWindowEnd = shiftEndTotal;
-            
-            let finishedToday = false;
-            for (let i = 0; i <= breaks.length; i++) {
-              let breakStart = i < breaks.length ? breaks[i].startM : workWindowEnd;
-              let breakEnd = i < breaks.length ? breaks[i].endM : workWindowEnd;
-              
-              if (workWindowStart < breakStart) {
-                let segment = Math.min(breakStart, workWindowEnd) - workWindowStart;
-                if (remainingMinutes <= segment) {
-                  resultDate = new Date(currentDate.getTime() + remainingMinutes * 60000);
-                  remainingMinutes = 0;
-                  finishedToday = true;
-                  break;
-                } else {
-                  remainingMinutes -= segment;
-                  workWindowStart = breakEnd;
-                  currentDate.setHours(Math.floor(workWindowStart / 60), workWindowStart % 60, 0, 0);
-                }
-              } else if (workWindowStart >= breakStart && workWindowStart < breakEnd) {
-                workWindowStart = breakEnd;
-                currentDate.setHours(Math.floor(workWindowStart / 60), workWindowStart % 60, 0, 0);
-              }
-            }
-            if (!finishedToday && remainingMinutes > 0) {
-              currentDate.setDate(currentDate.getDate() + 1);
-              currentDate.setHours(0, 0, 0, 0);
-            }
-          }
-          let onlyMC = '';
-          if (resultDate) {
-            const year = resultDate.getFullYear();
-            const month = String(resultDate.getMonth() + 1).padStart(2, '0');
-            const day = String(resultDate.getDate()).padStart(2, '0');
-            const hours = String(resultDate.getHours()).padStart(2, '0');
-            const minutes = String(resultDate.getMinutes()).padStart(2, '0');
-            onlyMC = `${year}-${month}-${day}T${hours}:${minutes}`;
-          }
-          
-          setFormData((prevFormData) => ({
-            ...prevFormData,
-            targetDateOnlyMC: onlyMC,
-            targetDateWholePart: onlyMC,
-          }));
-        }
-      };
-      autoPredict();
-    } else {
       updateTargetDates();
     }
-    // eslint-disable-next-line
-  }, [formData.startDate, formData.planQty, formData.cncTimePerPc, formData.vmcTimePerPc, formData.type, formData.totalTimeHrs]);
+  }, [formData.startDate, formData.totalTimeHrs, formData.setupTime]);
 
   // --- Calculate working days between start and end date (inclusive) ---
   function calculateWorkingDays(startDateStr, endDateStr) {
@@ -952,44 +948,6 @@ export default function MachinePlan() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --- UTILITY: Walk forward from shift start, skipping breaks, to find finish time ---
-  function getFinishTimeWithBreaks(shiftStart, shiftEnd, breaks, requiredMinutes) {
-    const toMinutes = t => {
-      const [h, m] = t.split(":").map(Number);
-      return h * 60 + m;
-    };
-    const toTimeStr = mins => {
-      let h = Math.floor(mins / 60) % 24;
-      let m = mins % 60;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    };
-    let start = toMinutes(shiftStart);
-    let end = toMinutes(shiftEnd);
-    if (end <= start) end += 24 * 60; // Overnight
-    // Prepare all breaks as [start, end) in minutes
-    const allBreaks = breaks.map(b => {
-      let bs = toMinutes(b.start), be = toMinutes(b.end);
-      if (be <= bs) be += 24 * 60;
-      return [bs, be];
-    }).sort((a, b) => a[0] - b[0]);
-    let workDone = 0;
-    let t = start;
-    let bIdx = 0;
-    while (t < end && workDone < requiredMinutes) {
-      // If next break is now or has passed, skip it
-      if (bIdx < allBreaks.length && t >= allBreaks[bIdx][1]) bIdx++;
-      // If in a break, jump to end of break
-      if (bIdx < allBreaks.length && t >= allBreaks[bIdx][0] && t < allBreaks[bIdx][1]) {
-        t = allBreaks[bIdx][1];
-        continue;
-      }
-      // Work one minute
-      workDone++;
-      t++;
-    }
-    return toTimeStr(t);
-  }
-
   return (
     <div className={styles.formContainer}>
       <div style={{ display: '-ms-flexbox', flexDirection: 'column', alignItems: 'center', marginBottom: 8, }}>
@@ -1141,12 +1099,6 @@ export default function MachinePlan() {
                 className={styles.input}
               />
               {errors[field] && <p className={styles.error}>{errors[field]}</p>}
-              {/* Show shift info for startDate */}
-              {field === "startDate" && formData.shiftStart && formData.shiftEnd && (
-                <div className="text-xs text-blue-700 mt-1">
-                  Shift: {formData.shiftStart} - {formData.shiftEnd} | Available Hours: {formData.availableHours}
-                </div>
-              )}
             </div>
           ))}
           

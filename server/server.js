@@ -166,8 +166,35 @@ app.post('/calendar', async(req, res) => {
 //get api
 app.get('/calendar', async(req, res) => {
     try {
-        const calendarEntries = await calendarCollection.find({}).toArray();
+        let calendarEntries = await calendarCollection.find({}).toArray();
         console.log('GET /calendar - Fetched entries:', calendarEntries.length);
+
+        const defaultLunchBreak = { name: "Lunch", start: "13:30", end: "14:00", enabled: true };
+
+        calendarEntries = calendarEntries.map(entry => {
+          let regularBreaks = entry.regularBreaks || [];
+          const hasLunchBreak = regularBreaks.some(b => 
+            (b.name && b.name.toLowerCase() === 'lunch') || 
+            (b.start >= "13:00" && b.start < "14:00") // Check if any break starts between 1 PM and 2 PM
+          );
+
+          if (!hasLunchBreak) {
+            // Add default lunch if no specific lunch break is found
+            // We should also ensure no other break conflicts with 13:30-14:00 if we add it.
+            // For simplicity now, we'll just add it. A more robust solution might check for overlaps.
+            regularBreaks.push(defaultLunchBreak);
+          }
+          
+          // Ensure breaks are sorted by start time for consistency, if needed by client
+          regularBreaks.sort((a, b) => {
+            if (a.start < b.start) return -1;
+            if (a.start > b.start) return 1;
+            return 0;
+          });
+
+          return { ...entry, regularBreaks };
+        });
+
         res.status(200).json(calendarEntries);
     } catch (error) {
         console.error('Error fetching calendar entries:', error);

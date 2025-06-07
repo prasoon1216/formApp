@@ -65,7 +65,7 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
   // Default break configuration
   const defaultBreakTemplates = [
     { name: 'Morning Tea', start: '10:00', end: '10:15', enabled: true },
-    { name: 'Lunch', start: '13:00', end: '13:30', enabled: true },
+    { name: 'Lunch', start: '13:30', end: '14:00', enabled: true },
     { name: 'Evening Tea', start: '16:45', end: '17:00', enabled: true }
   ];
 

@@ -4,8 +4,8 @@ import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
 import axios from 'axios'
 
-// Set global axios defaults to use the deployed backend
-axios.defaults.baseURL = 'https://formapp-351i.onrender.com'
+// Set global axios defaults to use the local backend server
+axios.defaults.baseURL = 'http://localhost:10000'
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
