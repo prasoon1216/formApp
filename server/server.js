@@ -51,7 +51,6 @@ app.get('/machines', async(req, res) => {
         }
 
         const machines = await machinesCollection.find().toArray();
-        console.log('GET /machines - Returning machines:', machines);
         res.json(machines);
     } catch (error) {
         console.error('Error fetching machines:', error);
@@ -110,8 +109,7 @@ app.put('/machines/:id', async(req, res) => {
         // Ensure `_id` is not modified
         const updateData = { type, name, targetOEE };
 
-        const result = await machinesCollection.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: updateData }, { returnDocument: 'after' } // Ensure the updated document is returned
-        );
+        const result = await machinesCollection.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: updateData }, { returnDocument: 'after' });
 
         console.log(`PUT /machines/${id} - Machine updated:`, result.value);
         res.json(result.value); // Return the updated machine
@@ -167,7 +165,6 @@ app.post('/calendar', async(req, res) => {
 app.get('/calendar', async(req, res) => {
     try {
         let calendarEntries = await calendarCollection.find({}).toArray();
-        console.log('GET /calendar - Fetched entries:', calendarEntries.length);
 
         const defaultLunchBreak = { name: "Lunch", start: "13:30", end: "14:00", enabled: true };
 
@@ -180,8 +177,6 @@ app.get('/calendar', async(req, res) => {
 
           if (!hasLunchBreak) {
             // Add default lunch if no specific lunch break is found
-            // We should also ensure no other break conflicts with 13:30-14:00 if we add it.
-            // For simplicity now, we'll just add it. A more robust solution might check for overlaps.
             regularBreaks.push(defaultLunchBreak);
           }
           
@@ -227,7 +222,6 @@ app.put('/calendar/:id', async(req, res) => {
             return res.status(404).json({ error: 'Calendar entry not found.' });
         }
 
-        console.log(`PUT /calendar - Updated entry ID: ${id}`);
         res.status(200).json({ message: 'Calendar entry updated successfully.' });
     } catch (error) {
         console.error('Error updating calendar entry:', error);
@@ -391,7 +385,6 @@ app.post('/daily-production/job', async(req, res) => {
 app.put('/daily-production/job/:jobId', async(req, res) => {
     try {
         const { jobId } = req.params;
-        console.log(`Updating job with ID: ${jobId}`);
         // Prepare update data (flat payload)
         const updateData = {...req.body };
         delete updateData.currentDate;
@@ -451,7 +444,6 @@ app.delete('/daily-production/job/:jobId', async(req, res) => {
 // Save production entries independently of jobs
 app.put('/daily-production/production-independent', async(req, res) => {
     try {
-        console.log('INCOMING /production-independent BODY:', JSON.stringify(req.body));
         const { date, productionEntries } = req.body;
         if (!date || !productionEntries || !Array.isArray(productionEntries)) {
             return res.status(400).json({ error: 'Both date and productionEntries (array) are required.' });
@@ -589,8 +581,6 @@ app.get('/daily-production/entries/:jobCardNo', async(req, res) => {
 
 // Calendar API Routes (using Mongoose)
 app.use('/api/calendar', require('./routes/calendarRoutes'));
-
-// Job report endpoint is now handled by routes/jobRoutes.js under '/job/report/:jobCardNo'
 
 // Mount the form-submit router
 app.use("/form-submit", require("./models/mpbackend"));

@@ -76,7 +76,6 @@ export default function Machines() {
       }
 
       const newMachine = { id: uuidv4(), ...formData }; // Generate a unique ID and include it in the new machine
-      console.log('Adding machine:', newMachine);
 
       // Send the new machine to the backend
       await axios.post('/machines', newMachine);

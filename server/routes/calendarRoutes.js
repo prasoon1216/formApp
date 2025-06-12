@@ -25,7 +25,6 @@ router.get('/', async (req, res) => {
       };
     }
     
-    console.log('Calendar query:', query);
     const entries = await CalendarEntry.find(query).sort({ date: 1 });
     res.json(entries);
   } catch (error) {
@@ -57,15 +56,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Date is required' });
     }
     
-    console.log('Saving calendar entry:', JSON.stringify(entryData));
-    
     // Check if entry with this date already exists
     const existingEntry = await CalendarEntry.findOne({ date: entryData.date });
     
     if (existingEntry) {
-      // Update existing entry
-      console.log(`Entry for date ${entryData.date} already exists, updating`);
-      
+
       // Remove the _id field if it exists in the request
       if (entryData._id) {
         delete entryData._id;
@@ -79,8 +74,6 @@ router.post('/', async (req, res) => {
       
       return res.json(updatedEntry);
     } else {
-      // Create new entry
-      console.log(`Creating new entry for date ${entryData.date}`);
       const newEntry = new CalendarEntry(entryData);
       const savedEntry = await newEntry.save();
       return res.status(201).json(savedEntry);

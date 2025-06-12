@@ -373,8 +373,6 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
           sundayWork: !!e.sundayWork
         };
         
-        console.log('Saving entry for date:', e.date);
-
         // The new API endpoint handles create/update logic based on date
         await axios.post("/api/calendar", payload);
       }

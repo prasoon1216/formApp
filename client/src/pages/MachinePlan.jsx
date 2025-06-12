@@ -339,8 +339,6 @@ export default function MachinePlan() {
         currentProcessingTimeMin = shiftStartMin;
       }
       
-      // If day is not in calendar and not a Sunday, it defaults to 08:00-20:00 shift.
-      // If it's a non-working day (e.g. no shift times defined and not a default working day type), skip.
       // This check is simplified: if shiftStartMin and shiftEndMin are effectively 0 (or equal), assume non-working unless explicitly SundayWork.
       if (shiftStartMin === shiftEndMin && !(isSunday && isSundayWork)) { // A crude check for no defined shift
          // Only advance if there's no calendar entry to provide defaults, or entry explicitly has no hours

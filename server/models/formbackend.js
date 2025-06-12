@@ -115,7 +115,6 @@ async function removeUniqueConstraints() {
           await db.collection('dailyproductions').dropIndex(index.name);
         }
       }
-      console.log('Unique constraints removal completed');
     }
   } catch (error) {
     console.error('Error removing unique constraints:', error);

@@ -50,9 +50,7 @@ router.post("/", async (req, res) => {
 // Route to fetch all saved forms
 router.get("/", async (req, res) => {
   try {
-    console.log('Fetching saved forms...');
-    const savedForms = await ProductionPlan.find().sort({ _id: -1 }); // Sort by newest first
-    console.log('Found forms:', savedForms.length);
+    const savedForms = await ProductionPlan.find().sort({ _id: -1 });
     res.status(200).json(savedForms);
   } catch (error) {
     console.error("Error fetching saved forms:", error);
@@ -98,7 +96,6 @@ router.put("/:id", async (req, res) => {
       req.body,
       { new: true }
     );  
-    
     if (!result) {
       return res.status(404).json({ error: "Form not found" });
     }
