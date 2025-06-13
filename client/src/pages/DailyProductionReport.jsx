@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 // Base URL is set globally in main.jsx
 
@@ -392,7 +392,7 @@ export default function DailyProductionReport() {
   useEffect(() => {
     async function fetchAllJobCardNumbers() {
       try {
-        const response = await axios.get('/job/all-job-card-numbers');
+        const response = await api.get('/job/all-job-card-numbers');
         if (response.data && Array.isArray(response.data)) {
           setAllJobCardNumbers(response.data);
         }
@@ -456,8 +456,8 @@ export default function DailyProductionReport() {
       if (jobCardNo) {
         // Search by job card number
         const encodedJobCardNo = encodeURIComponent(jobCardNo);
-        jobsRes = await axios.get(`/job/report/${encodedJobCardNo}`);
-        entriesRes = await axios.get(`/daily-production/entries/${encodedJobCardNo}`);
+        jobsRes = await api.get(`/job/report/${encodedJobCardNo}`);
+        entriesRes = await api.get(`/daily-production/entries/${encodedJobCardNo}`);
       } else {
         setError('Please enter a Job Card Number');
         setLoading(false);

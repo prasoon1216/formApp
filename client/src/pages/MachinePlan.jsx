@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from '../api';
 import { useNavigate } from "react-router-dom";
 import Calendar from "./Calendar";
 import styles from "../MachinePlan.module.css";
@@ -53,7 +53,7 @@ export default function MachinePlan() {
   useEffect(() => {
     const fetchMachines = async () => {
       try {
-        const response = await axios.get("/machines");
+        const response = await api.get("/machines");
         setMachines(response.data);
         // Filter machines by default type (CNC)
         setFilteredMachines(response.data.filter((machine) => machine.type && machine.type.toLowerCase() === "cnc"));
@@ -80,7 +80,7 @@ export default function MachinePlan() {
   // Fetch saved forms from the backend
   const fetchSavedForms = async () => {
     try {
-      const response = await axios.get("/form-submit");
+      const response = await api.get("/form-submit");
       setSavedForms(response.data);
     } catch (error) {
       console.error("Error fetching saved forms:", error);
@@ -368,7 +368,7 @@ export default function MachinePlan() {
 
   const calculateTargetDate = async (startDate, totalTimeHrs) => {
   try {
-    const response = await axios.get("http://localhost:10000/api/calendar");  
+    const response = await api.get("/api/calendar");  
     const calendarData = response.data;
 
     const { date: adjustedStartDate, isFirstDay: initialIsFirstDayFlag } = findNextWorkingTime(new Date(startDate), calendarData);
@@ -490,7 +490,7 @@ export default function MachinePlan() {
 
   const calculateTargetDateOnlyMC = async (startDate, totalTimeOnlyMC) => {
   try {
-    const response = await axios.get("http://localhost:10000/api/calendar");
+    const response = await api.get("/api/calendar");
     const calendarData = response.data;
 
     const { date: adjustedStartDate, isFirstDay: initialIsFirstDayFlag } = findNextWorkingTime(new Date(startDate), calendarData);
@@ -718,7 +718,7 @@ export default function MachinePlan() {
         const month = dateObj.getMonth();
         const day = String(dateObj.getDate()).padStart(2, '0');
         const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${day}`;
-        const res = await axios.get("http://localhost:10000/api/calendar", { params: { month, year } });
+        const res = await api.get("/api/calendar", { params: { month, year } });
         const entry = res.data.find((e) => e.date === dateStr);
         if (entry) {
           nextFormData.shiftStart = entry.shiftStart || '';
@@ -797,7 +797,7 @@ export default function MachinePlan() {
       }
     }
     if (!formData.partName.trim()) {
-      newErrors.partName = "Part Name is required";
+            newErrors.partName = "Part Name is required";
     }
     if (!formData.partNo.trim()) {
       newErrors.partNo = "Part No. is required";
@@ -889,14 +889,14 @@ export default function MachinePlan() {
 
       if (editingForm) {
         // Update existing form
-        response = await axios.put(`/form-submit/${editingForm}`, formData);
+        response = await api.put(`/form-submit/${editingForm}`, formData);
         if (response.status === 200) {
           alert("Form updated successfully!");
           setEditingForm(null);
         }
       } else {
         // Create new form
-        response = await axios.post("/form-submit", formData);
+        response = await api.post("/form-submit", formData);
         if (response.status === 201) {
           alert("Form data saved successfully!");
         }
@@ -916,7 +916,7 @@ export default function MachinePlan() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this form?')) {
       try {
-        await axios.delete(`/form-submit/${id}`);
+        await api.delete(`/form-submit/${id}`);
         await fetchSavedForms();
       } catch (error) {
         console.error("Error deleting form:", error);

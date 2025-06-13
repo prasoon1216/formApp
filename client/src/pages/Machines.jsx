@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from 'axios'; 
+import api from '../api'; 
 import { v4 as uuidv4 } from 'uuid'; 
 
 export default function Machines() {
@@ -15,7 +15,7 @@ export default function Machines() {
 
   const fetchMachines = async () => {
     try {
-      const response = await axios.get('/machines');
+      const response = await api.get('/machines');
       const sortedMachines = response.data.sort((a, b) => {
         if (a.type === b.type) {
           return a.name.localeCompare(b.name);
@@ -77,7 +77,7 @@ export default function Machines() {
       const newMachine = { id: uuidv4(), ...formData }; 
 
       // Send the new machine to the backend
-      await axios.post('/machines', newMachine);
+      await api.post('/machines', newMachine);
 
       // Fetch the updated list of machines
       await fetchMachines();
@@ -116,7 +116,7 @@ export default function Machines() {
       const { id, _id, ...cleanFormData } = formData;
       console.log('📦 Sending update with data:', cleanFormData);
 
-      const response = await axios.put(updateUrl, cleanFormData);
+      const response = await api.put(updateUrl, cleanFormData);
 
       if (response.status !== 200) {
         console.error('❌ Error while editing machine: Unexpected response status', response.status);
@@ -161,7 +161,7 @@ export default function Machines() {
         }
 
         // Send delete request to the backend
-        await axios.delete(`/machines/${machineToDelete._id}`);
+        await api.delete(`/machines/${machineToDelete._id}`);
 
         // Fetch the updated list of machines
         await fetchMachines();

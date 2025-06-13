@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:10000';
+// This file is unused and has been intentionally left blank to avoid conflicts.
+// The correct, active API configuration is in /src/api.js.
 
 export const productionApi = {
   // Get all production records

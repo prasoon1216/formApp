@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import AlliedLogo from '../assets/images/AlliedLogo.jpg';
-import axios from 'axios';
+import api from '../api';
 
 // Helper function for date formatting
 const formatDate = (date) => {
@@ -170,7 +170,7 @@ const defaultEntry = {
   const fetchDailyProduction = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`/daily-production/${currentDate}`);
+      const response = await api.get(`/daily-production/${currentDate}`);
       setSavedJobs(response.data.jobs || []);
       // Only update production entries if they are fetched for the first time, not on job deletion
       if (response.data.independentProductionEntries && response.data.independentProductionEntries.length > 0) {
@@ -230,7 +230,7 @@ const defaultEntry = {
       if (editingJobId) {
         response = await axios.put(`/daily-production/job/${editingJobId}`, payload);
       } else {
-        response = await axios.post('/daily-production/job', payload);
+        response = await api.post('/daily-production/job', payload);
       }
       fetchDailyProduction();
       setIsLoading(false);
@@ -313,7 +313,7 @@ const defaultEntry = {
     
     try {
       // Get machines first to ensure we can set a default machine
-      const machinesResponse = await axios.get('http://localhost:10000/machines');
+      const machinesResponse = await api.get('/machines');
       const machinesList = machinesResponse.data || [];
       
       // Set a default machine if available
@@ -486,7 +486,7 @@ const defaultEntry = {
     const fetchInitialData = async () => {
       try {
         // Get machines list
-        const machinesResponse = await axios.get('/machines');
+        const machinesResponse = await api.get('/machines');
         if (machinesResponse.data && machinesResponse.data.length > 0) {
           const machinesList = machinesResponse.data;
           setMachines(machinesList);

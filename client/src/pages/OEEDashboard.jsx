@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import api from '../api';
 import { FaCalendarAlt, FaArrowLeft } from "react-icons/fa";
 import OEEMachineCard from "../components/OEEMachineCard";
 import OEESummaryCard from "../components/OEESummaryCard";
@@ -85,7 +85,7 @@ export default function OEEDashboard() {
     let pollingInterval;
     async function fetchMachines() {
       try {
-        const res = await axios.get("/machines");
+        const res = await api.get("/machines");
         // Sort by type, then by name
         const sorted = [...res.data].sort((a, b) => {
           if (a.type === b.type) {
@@ -107,7 +107,7 @@ export default function OEEDashboard() {
     const fetchReports = async () => {
       setLoading(true);
       try {
-        const res = await axios.get("/job/all-reports");
+        const res = await api.get("/job/all-reports");
         setReports(res.data || []);
       } catch (err) {
         setError("Failed to fetch reports");

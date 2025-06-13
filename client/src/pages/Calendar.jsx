@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import api from '../api';
 import axios from "axios";
 
 function formatDisplayDate(dateStr) {
@@ -113,7 +114,7 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
     const defaultData = initializeCalendarData(selectedYear, selectedMonth);
     try {
       // Filter calendar entries by month and year
-      const res = await axios.get("/api/calendar", {
+      const res = await api.get("/api/calendar", {
         params: {
           month: selectedMonth,
           year: selectedYear
@@ -374,7 +375,7 @@ export default function Calendar({ onShiftSelect, closeCalendar }) {
         };
         
         // The new API endpoint handles create/update logic based on date
-        await axios.post("/api/calendar", payload);
+        await api.post("/api/calendar", payload);
       }
       
       onShiftSelect(entries[0]);
