@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import axios from 'axios'; // Import Axios for HTTP requests
-import { v4 as uuidv4 } from 'uuid'; // Import UUID for generating unique IDs
+import axios from 'axios'; 
+import { v4 as uuidv4 } from 'uuid'; 
 
 export default function Machines() {
   const [machines, setMachines] = useState([]);
@@ -11,7 +11,7 @@ export default function Machines() {
   });
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [errors, setErrors] = useState({}); // State for validation errors
+  const [errors, setErrors] = useState({}); 
 
   const fetchMachines = async () => {
     try {
@@ -22,7 +22,6 @@ export default function Machines() {
         }
         return a.type.localeCompare(b.type);
       });
-      console.log('Fetched and sorted machines:', sortedMachines);
       setMachines(sortedMachines);
     } catch (error) {
       console.error('Error fetching machines:', error);
@@ -75,7 +74,7 @@ export default function Machines() {
         return;
       }
 
-      const newMachine = { id: uuidv4(), ...formData }; // Generate a unique ID and include it in the new machine
+      const newMachine = { id: uuidv4(), ...formData }; 
 
       // Send the new machine to the backend
       await axios.post('/machines', newMachine);
@@ -107,7 +106,7 @@ export default function Machines() {
       if (!machineId) {
         console.error('❌ Machine ID is missing in selected machine');
         alert('Failed to edit machine. Machine ID is missing.');
-        return; // Stop further execution
+        return; 
       }
 
       const updateUrl = `/machines/${machineId}`;
@@ -143,7 +142,7 @@ export default function Machines() {
         console.error('❌ Error while editing machine:', error.message);
         alert('Failed to edit machine. Please try again.');
       }
-      return; // Stop further execution
+      return; 
     }
   };
 
@@ -194,7 +193,7 @@ export default function Machines() {
   const handleEditClick = () => {
     if (selectedMachine) {
       const machineToEdit = machines[selectedMachine.index];
-      setFormData({ ...machineToEdit }); // Include all fields, including `_id`
+      setFormData({ ...machineToEdit }); 
       setIsEditing(true);
     }
   };
@@ -228,8 +227,8 @@ export default function Machines() {
                           }`}
                         >
                           <div className="flex justify-between items-center">
-                            <span className="font-bold">{machineType}-{name}</span> {/* Machine name */}
-                            <span className="text-lg text-gray-600">T-OEE {targetOEE}%</span> {/* Target OEE */}
+                            <span className="font-bold">{machineType}-{name}</span> 
+                            <span className="text-lg text-gray-600">T-OEE {targetOEE}%</span> 
                           </div>
                         </div>
                       ))}

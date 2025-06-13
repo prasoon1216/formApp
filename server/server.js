@@ -61,7 +61,7 @@ app.get('/machines', async(req, res) => {
 // Add a new machine
 app.post('/machines', async(req, res) => {
     console.log('POST /machines - Request body:', req.body);
-    const { id, type, name, targetOEE } = req.body;
+    const { id, type, name, targetOEE, targetMonthYear } = req.body;
 
     if (!type || !name || !targetOEE) {
         console.error('POST /machines - Validation failed:', req.body);
@@ -545,8 +545,6 @@ app.get('/daily-production/job/latest/:jobCardNo', async(req, res) => {
 app.get('/daily-production/entries/:jobCardNo', async(req, res) => {
     try {
         const { jobCardNo } = req.params;
-        console.log(`Fetching production entries for job card: ${jobCardNo}`);
-
         // Find all daily production records containing this job card number in their entries
         const records = await DailyProduction.find().sort({ date: -1 }); // Get ALL records, sorted by date desc
 

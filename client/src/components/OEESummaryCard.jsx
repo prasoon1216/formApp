@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-// Keep original props for onClick functionality, but override display values
+// A summary card displaying OEE data for a machine.
 export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, actualOEE: propActualOEE, onClick }) {
   const [displayTargetOEE, setDisplayTargetOEE] = useState(propTargetOEE);
   const [displayActualOEE, setDisplayActualOEE] = useState(propActualOEE);
-
-  useEffect(() => {
-    const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-    const target = randomBetween(80, 95);
-    const actual = randomBetween(65, target);
-    setDisplayTargetOEE(target);
-    setDisplayActualOEE(actual);
-  }, []);
 
   const cardStyle = {
     background: 'linear-gradient(135deg, #e3f2fd, #bbdefb)',
@@ -35,10 +27,8 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
 
   const [isHovered, setIsHovered] = useState(false);
 
-  const chartHeight = 60; // Height of the bars
-  const barWidth = 35; // Width of each bar
-  const targetColor = '#fb923c'; // Orange-500
-  const actualColor = '#4ade80'; // Green-400
+  const targetColor = '#fb923c'; 
+  const actualColor = '#4ade80'; 
 
   return (
     <div
@@ -73,9 +63,9 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
           position: 'relative',
           background: '#f3f4f6',
           borderRadius: '8px',
-          overflow: 'visible', /* Changed from 'hidden' to 'visible' to show elements outside the container */
-          paddingTop: '30px', /* Added top padding to make room for percentage labels */
-          marginTop: '15px' /* Added margin to prevent overlap with elements above */
+          overflow: 'visible', 
+          paddingTop: '30px', 
+          marginTop: '15px' 
         }}>
           {/* Target Column */}
           <div style={{
@@ -91,7 +81,7 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
             {/* Percentage displayed above the bar */}
             <div style={{
               position: 'absolute',
-              top: '-25px', // Position above the bar
+              top: '-25px', 
               left: '-5px',
               width: '40px',
               textAlign: 'center'
@@ -105,7 +95,7 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
                 borderRadius: '4px',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
               }}>
-                {displayTargetOEE !== null ? `${displayTargetOEE}%` : '--'}
+                {displayTargetOEE !== null ? `${displayTargetOEE}%` : 'N/A'}
               </span>
             </div>
           </div>
@@ -124,7 +114,7 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
             {/* Percentage displayed above the bar */}
             <div style={{
               position: 'absolute',
-              top: '-25px', // Position above the bar
+              top: '-25px', 
               left: '-5px',
               width: '40px',
               textAlign: 'center'
@@ -138,7 +128,7 @@ export default function OEESummaryCard({ machineName, targetOEE: propTargetOEE, 
                 borderRadius: '4px',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
               }}>
-                {displayActualOEE !== null ? `${displayActualOEE}%` : '--'}
+                {displayActualOEE !== null ? `${displayActualOEE}%` : '-'}
               </span>
             </div>
           </div>

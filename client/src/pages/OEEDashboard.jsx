@@ -17,11 +17,11 @@ function calculateOEE(entries) {
 // Helper to get financial year dates from a label like '2024-25'
 function getCurrentFinancialYearDates() {
   const today = new Date();
-  const currentMonth = today.getMonth(); // 0-11
+  const currentMonth = today.getMonth(); 
   const currentYear = today.getFullYear();
   let startYear, endYear;
 
-  if (currentMonth >= 3) { // April (index 3) or later
+  if (currentMonth >= 3) { 
     startYear = currentYear;
     endYear = currentYear + 1;
   } else { // Jan, Feb, March
@@ -29,9 +29,9 @@ function getCurrentFinancialYearDates() {
     endYear = currentYear;
   }
 
-  const startDate = new Date(startYear, 3, 1); // April 1st
+  const startDate = new Date(startYear, 3, 1); 
   startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(endYear, 2, 31);   // March 31st
+  const endDate = new Date(endYear, 2, 31);   
   endDate.setHours(23, 59, 59, 999);
 
   const yearLabel = `${startYear}-${endYear.toString().slice(-2)}`;
@@ -41,13 +41,13 @@ function getCurrentFinancialYearDates() {
 
 // Helper to convert label ('2024-25') to dates
 function getFinancialYearDatesFromLabel(label) {
-  if (!label || !label.includes('-')) return getCurrentFinancialYearDates(); // Fallback
+  if (!label || !label.includes('-')) return getCurrentFinancialYearDates(); 
   const startYear = parseInt(label.split('-')[0]);
   const endYear = startYear + 1;
 
-  const startDate = new Date(startYear, 3, 1); // April 1st
+  const startDate = new Date(startYear, 3, 1); 
   startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(endYear, 2, 31);   // March 31st
+  const endDate = new Date(endYear, 2, 31);   
   endDate.setHours(23, 59, 59, 999);
 
   return { startDate, endDate, yearLabel: label };
@@ -68,7 +68,7 @@ function generateFYLabels(count = 5) {
 
 export default function OEEDashboard() {
   // View State
-  const [viewMode, setViewMode] = useState('summary'); // 'summary' or 'detail'
+  const [viewMode, setViewMode] = useState('summary'); 
   const [selectedMachineKeyForDetail, setSelectedMachineKeyForDetail] = useState(null);
 
   const [machines, setMachines] = useState([]);
@@ -77,10 +77,9 @@ export default function OEEDashboard() {
   const [error, setError] = useState(null);
 
   // State for Selected Financial Year
-  const [selectedFYLabel, setSelectedFYLabel] = useState(() => getCurrentFinancialYearDates().yearLabel);
-
-  // Generate FY options
-  const fyOptions = useMemo(() => generateFYLabels(5), []);
+  const [selectedFYLabel] = useState(() => getCurrentFinancialYearDates().yearLabel);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     let pollingInterval;
@@ -100,7 +99,6 @@ export default function OEEDashboard() {
       }
     }
     fetchMachines();
-    // Poll every 10 seconds for new/removed machines
     pollingInterval = setInterval(fetchMachines, 10000);
     return () => clearInterval(pollingInterval);
   }, []);
@@ -122,7 +120,7 @@ export default function OEEDashboard() {
 
   // --- Calculate data based on selected FY using useMemo --- 
   const machineDataFY = useMemo(() => {
-    if (loading || !machines.length || !reports.length) return []; // Don't calculate if loading or no data
+    if (loading || !machines.length || !reports.length) return []; 
 
     // Get dates for the *selected* financial year
     const { startDate: fyStartDate, endDate: fyEndDate } = getFinancialYearDatesFromLabel(selectedFYLabel);
@@ -149,7 +147,7 @@ export default function OEEDashboard() {
       // Calculate OEE if there are reports
       const targetOEE = Number(machine.targetOEE) || null;
       const actualOEE = mcReportsFY.length > 0 ? calculateOEE(mcReportsFY) : null;
-      const overallOEE = actualOEE; // Assuming Overall = Actual for now
+      const overallOEE = actualOEE;
 
       return {
         key: `${machine.type}-${machine.name}`,
@@ -168,12 +166,25 @@ export default function OEEDashboard() {
       const bName = b.machineName.toLowerCase();
       return aName.localeCompare(bName);
     });
-  }, [selectedFYLabel, machines, reports, loading]); // Recalculate when FY, machines, or reports change
+  }, [selectedFYLabel, machines, reports, loading]); 
 
   // Data for the selected machine in detail view
   const detailedMachineData = viewMode === 'detail'
     ? machineDataFY.find(m => m.key === selectedMachineKeyForDetail)
     : null;
+
+  // Group data by machine type for summary view, ensuring data is always in sync
+  const groupedMachineData = useMemo(() => {
+    if (!machineDataFY) return {};
+    return machineDataFY.reduce((acc, data) => {
+      const type = data.machine.type;
+      if (!acc[type]) {
+        acc[type] = [];
+      }
+      acc[type].push(data);
+      return acc;
+    }, {});
+  }, [machineDataFY]);
 
   const handleSummaryCardClick = (machineKey) => {
     setSelectedMachineKeyForDetail(machineKey);
@@ -201,28 +212,21 @@ export default function OEEDashboard() {
         </div>
         <div style={{
           background: '#f3f4f6', color: '#1f2937', borderRadius: 8,
-          padding: '0.4rem 0.8rem', // Adjusted padding
+          padding: '0.4rem 0.8rem',
           display: 'flex', alignItems: 'center', gap: 8
         }}>
           <FaCalendarAlt />
           <span style={{ marginRight: '5px', fontWeight: 500 }}>Financial Year:</span>
-          <select
-            value={selectedFYLabel}
-            onChange={(e) => setSelectedFYLabel(e.target.value)}
-            style={{
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              padding: '4px 8px',
-              fontWeight: 600,
-              backgroundColor: '#fff',
-              cursor: 'pointer',
-              fontSize: '15px',
-            }}
-          >
-            {fyOptions.map(label => (
-              <option key={label} value={label}>{label}</option>
-            ))}
-          </select>
+          <span style={{
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            padding: '4px 8px',
+            fontWeight: 600,
+            backgroundColor: '#fff',
+            fontSize: '15px',
+          }}>
+            {selectedFYLabel}
+          </span>
         </div>
       </div>
 
@@ -234,14 +238,9 @@ export default function OEEDashboard() {
       ) : viewMode === 'summary' ? (
         // --- SUMMARY VIEW --- 
         <div>
-          {/* Group machines by type and render each group */}
-          {Object.entries(
-            machines.reduce((acc, machine) => {
-              acc[machine.type] = acc[machine.type] || [];
-              acc[machine.type].push(machine);
-              return acc;
-            }, {})
-          ).map(([type, groupMachines]) => (
+          {Object.entries(groupedMachineData)
+            .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
+            .map(([type, groupData]) => (
             <div key={type} style={{ marginBottom: '36px' }}>
               <h3 style={{
                 fontSize: '1.4em',
@@ -256,29 +255,24 @@ export default function OEEDashboard() {
                 gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
                 gap: '28px',
               }}>
-                {groupMachines.map(machine => {
-                  const machineKey = `${machine.type}-${machine.name}`;
-                  const machineData = machineDataFY.find(m => m.key === machineKey);
-                  return (
-                    <OEESummaryCard
-                      key={machineKey}
-                      machineName={machineKey}
-                      targetOEE={machineData ? machineData.targetOEE : Number(machine.targetOEE) || null}
-                      actualOEE={machineData ? machineData.actualOEE : null}
-                      onClick={() => handleSummaryCardClick(machineKey)}
-                    />
-                  );
-                })}
+                {groupData.map(data => (
+                  <OEESummaryCard
+                    key={data.key}
+                    machineName={data.machineName}
+                    targetOEE={data.targetOEE}
+                    actualOEE={data.actualOEE}
+                    onClick={() => handleSummaryCardClick(data.key)}
+                  />
+                ))}
               </div>
             </div>
           ))}
         </div>
       ) : viewMode === 'detail' && detailedMachineData ? (
         // --- DETAIL VIEW --- 
-        <div style={{ maxWidth: 700, margin: '0 auto' }}> { /* Center the detailed card */ }
+        <div style={{ maxWidth: 700, margin: '0 auto' }}> 
           <OEEMachineCard
-            machine={detailedMachineData.machine} // Pass original machine info
-            // Pass pre-calculated FY values and FY reports
+            machine={detailedMachineData.machine} 
             targetOEE_FY={detailedMachineData.targetOEE}
             overallOEE_FY={detailedMachineData.overallOEE}
             actualOEE_FY={detailedMachineData.actualOEE}
