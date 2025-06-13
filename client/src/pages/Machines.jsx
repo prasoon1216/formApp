@@ -16,13 +16,18 @@ export default function Machines() {
   const fetchMachines = async () => {
     try {
       const response = await api.get('/machines');
-      const sortedMachines = response.data.sort((a, b) => {
-        if (a.type === b.type) {
-          return a.name.localeCompare(b.name);
-        }
-        return a.type.localeCompare(b.type);
-      });
-      setMachines(sortedMachines);
+      // Defensively check if data is an array before sorting
+      if (Array.isArray(response.data)) {
+        const sortedMachines = response.data.sort((a, b) => {
+          if (a.type === b.type) {
+            return a.name.localeCompare(b.name);
+          }
+          return a.type.localeCompare(b.type);
+        });
+        setMachines(sortedMachines);
+      } else {
+        console.error('Error fetching machines: API response is not an array.', response.data);
+      }
     } catch (error) {
       console.error('Error fetching machines:', error);
     }

@@ -86,14 +86,19 @@ export default function OEEDashboard() {
     async function fetchMachines() {
       try {
         const res = await api.get("/machines");
-        // Sort by type, then by name
-        const sorted = [...res.data].sort((a, b) => {
-          if (a.type === b.type) {
-            return a.name.localeCompare(b.name);
-          }
-          return a.type.localeCompare(b.type);
-        });
-        setMachines(sorted);
+        // Defensively check if data is an array before sorting
+        if (Array.isArray(res.data)) {
+          const sorted = [...res.data].sort((a, b) => {
+            if (a.type === b.type) {
+              return a.name.localeCompare(b.name);
+            }
+            return a.type.localeCompare(b.type);
+          });
+          setMachines(sorted);
+        } else {
+          console.error("Error fetching machines: API response is not an array.", res.data);
+          setError("Failed to fetch machines: Invalid data format");
+        }
       } catch (err) {
         setError("Failed to fetch machines");
       }
