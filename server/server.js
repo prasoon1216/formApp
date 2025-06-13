@@ -18,7 +18,16 @@ const COLLECTION_NAME = process.env.COLLECTION_NAME || 'machines';
 const CALENDAR_COLLECTION_NAME = process.env.CALENDAR_COLLECTION_NAME || 'calendar';
 
 // Middleware
-app.use(cors()); // Allow requests from other origins (e.g., frontend on port 5173)
+// Configure CORS for production and development
+const corsOptions = {
+  origin: [
+    'https://productionfrontned.netlify.app', // Deployed frontend
+    'http://localhost:5173',                // Local development
+    'http://127.0.0.1:5173'                 // Local development
+  ],
+  optionsSuccessStatus: 200 // For legacy browser support
+};
+app.use(cors(corsOptions));
 app.use(bodyParser.json()); // Parse incoming JSON data
 
 // Authentication removed
